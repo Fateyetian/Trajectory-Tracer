@@ -6,7 +6,19 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 import json
-from datasets import load_from_disk
+
+# Check if HuggingFace datasets is available (without importing it yet)
+DATASETS_AVAILABLE = False
+try:
+    import importlib.util
+    spec = importlib.util.find_spec("datasets")
+    if spec is not None:
+        DATASETS_AVAILABLE = True
+except (ImportError, AttributeError):
+    pass
+
+if not DATASETS_AVAILABLE:
+    print("Warning: HuggingFace datasets library not available. HuggingFace format will be disabled.")
 
 
 class Message:
@@ -87,6 +99,11 @@ class HuggingFaceDatasetAdapter(TrajectoryAdapter):
 
     def load(self, path: Path) -> List[Dict[str, Any]]:
         """加载 HuggingFace dataset"""
+        if not DATASETS_AVAILABLE:
+            raise RuntimeError("HuggingFace datasets library is not available. Cannot load this format.")
+
+        # Import only when needed
+        from datasets import load_from_disk
         dataset = load_from_disk(str(path))
         return list(dataset)
 
@@ -260,15 +277,17 @@ class TrajectoryLoader:
 
     def __init__(self):
         self.adapters = {
-            'huggingface': HuggingFaceDatasetAdapter(),
             'rebel_json': REBELJSONAdapter(),
         }
+        # Only add HuggingFace adapter if datasets library is available
+        if DATASETS_AVAILABLE:
+            self.adapters['huggingface'] = HuggingFaceDatasetAdapter()
 
     def detect_format(self, path: Path) -> Optional[str]:
         """自动检测轨迹格式"""
         if path.is_dir():
             # 检查是否是 HuggingFace dataset
-            if (path / 'dataset_info.json').exists() and (path / 'state.json').exists():
+            if DATASETS_AVAILABLE and (path / 'dataset_info.json').exists() and (path / 'state.json').exists():
                 return 'huggingface'
         elif path.is_file():
             # 检查文件扩展名
