@@ -1,16 +1,17 @@
 """
 Trajectory Viewer Backend - FastAPI Service
 提供轨迹数据的 REST API
+支持多种轨迹数据格式
 """
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from datasets import load_from_disk
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 import os
 from pathlib import Path
+from trajectory_adapters import TrajectoryLoader
 
-app = FastAPI(title="Trajectory Viewer API", version="1.0.0")
+app = FastAPI(title="Trajectory Viewer API", version="2.0.0")
 
 # 配置 CORS
 app.add_middleware(
@@ -21,8 +22,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 全局变量存储数据集
-dataset = None
+# 全局变量存储轨迹数据
+trajectory_loader = TrajectoryLoader()
 processed_trajectories = []
 
 
@@ -54,106 +55,35 @@ class TrajectoryDetail(BaseModel):
     environment: str
 
 
-def parse_trajectory(item: Dict[str, Any], idx: int) -> Dict[str, Any]:
-    """
-    解析单条轨迹数据
-    将对话格式转换为结构化数据
-    """
-    conversations = item['conversations']
-    messages = []
-
-    task = ""
-    environment = ""
-    task_type = "unknown"
-
-    for conv in conversations:
-        role = 'human' if conv['from'] == 'human' else 'agent'
-        value = conv['value']
-
-        # 提取任务信息
-        if 'Your task is to:' in value:
-            task_start = value.find('Your task is to:') + len('Your task is to:')
-            task_end = value.find('\n', task_start) if '\n' in value[task_start:] else len(value)
-            task = value[task_start:task_end].strip()
-
-            # 提取任务类型（使用第一个单词作为类型）
-            first_word = task.split()[0].lower() if task else 'unknown'
-            # 支持的任务类型: put, clean, heat, cool, find, examine, use
-            if first_word in ['put', 'clean', 'heat', 'cool', 'find', 'examine', 'use']:
-                task_type = first_word
-            else:
-                task_type = 'other'
-
-            # 提取环境描述
-            env_end = value.find('Your task is to:')
-            environment = value[:env_end].strip() if env_end > 0 else ""
-
-        # 解析 agent 的思考和动作
-        if role == 'agent' and 'Thought:' in value:
-            parts = value.split('Action:')
-            thought = parts[0].replace('Thought:', '').strip()
-            action = parts[1].strip() if len(parts) > 1 else ""
-
-            messages.append(Message(
-                role=role,
-                content=value,
-                thought=thought,
-                action=action
-            ))
-        elif role == 'agent' and 'Action:' in value:
-            # 只有动作，没有思考
-            action = value.replace('Action:', '').strip()
-            messages.append(Message(
-                role=role,
-                content=value,
-                thought=None,
-                action=action
-            ))
-        else:
-            messages.append(Message(
-                role=role,
-                content=value,
-                thought=None,
-                action=None
-            ))
-
-    # 判断是否成功（简单启发式：最后一条消息包含成功相关词汇）
-    last_message = conversations[-1]['value'].lower() if conversations else ""
-    status = 'success' if any(word in last_message for word in ['succeed', 'success', 'task completed', 'congratulations']) else 'unknown'
-
-    return {
-        'id': f"traj_{idx:05d}",
-        'task': task,
-        'status': status,
-        'steps': len([m for m in messages if m.role == 'agent' and m.action]),
-        'task_type': task_type,
-        'messages': messages,
-        'environment': environment,
-        'item_id': item.get('item_id', '')
-    }
 
 
 @app.on_event("startup")
 async def load_data():
     """启动时加载数据集"""
-    global dataset, processed_trajectories
+    global processed_trajectories
 
-    dataset_path = Path(__file__).parent.parent / "alfworld_expert_traj"
+    # 定义数据源路径
+    base_path = Path(__file__).parent.parent
+    data_sources = [
+        base_path / "alfworld_expert_traj",  # HuggingFace dataset
+        base_path / "alfworld_expert_traj" / "rebel_coldstart_clean.json",  # REBEL JSON
+    ]
 
-    if not dataset_path.exists():
-        print(f"Warning: Dataset not found at {dataset_path}")
-        return
+    # 加载所有可用的数据源
+    for data_path in data_sources:
+        if data_path.exists():
+            try:
+                trajectories = trajectory_loader.load(data_path)
+                # 转换为字典格式以保持向后兼容
+                for traj in trajectories:
+                    processed_trajectories.append(traj.to_dict())
+                print(f"Loaded {len(trajectories)} trajectories from {data_path.name}")
+            except Exception as e:
+                print(f"Warning: Failed to load {data_path}: {e}")
+        else:
+            print(f"Warning: Data source not found at {data_path}")
 
-    print(f"Loading dataset from {dataset_path}...")
-    dataset = load_from_disk(str(dataset_path))
-    print(f"Dataset loaded: {len(dataset)} trajectories")
-
-    # 预处理所有轨迹
-    print("Processing trajectories...")
-    for idx, item in enumerate(dataset):
-        processed_trajectories.append(parse_trajectory(item, idx))
-
-    print(f"Processed {len(processed_trajectories)} trajectories")
+    print(f"Total processed trajectories: {len(processed_trajectories)}")
 
 
 @app.get("/")
@@ -245,6 +175,7 @@ async def get_statistics():
             "total": 0,
             "by_status": {},
             "by_task_type": {},
+            "by_source": {},
             "avg_steps": 0
         }
 
@@ -262,6 +193,12 @@ async def get_statistics():
         task_type = t['task_type']
         by_task_type[task_type] = by_task_type.get(task_type, 0) + 1
 
+    # 按数据源统计
+    by_source = {}
+    for t in processed_trajectories:
+        source = t['metadata'].get('source', 'unknown')
+        by_source[source] = by_source.get(source, 0) + 1
+
     # 平均步数
     total_steps = sum(t['steps'] for t in processed_trajectories)
     avg_steps = total_steps / total if total > 0 else 0
@@ -270,7 +207,30 @@ async def get_statistics():
         "total": total,
         "by_status": by_status,
         "by_task_type": by_task_type,
+        "by_source": by_source,
         "avg_steps": round(avg_steps, 2)
+    }
+
+
+@app.get("/api/data-sources")
+async def get_data_sources():
+    """
+    获取已加载的数据源信息
+    """
+    sources = {}
+    for traj in processed_trajectories:
+        source = traj['metadata'].get('source', 'unknown')
+        if source not in sources:
+            sources[source] = {
+                'count': 0,
+                'format': source,
+                'sample_id': traj['id']
+            }
+        sources[source]['count'] += 1
+
+    return {
+        'total_sources': len(sources),
+        'sources': list(sources.values())
     }
 
 

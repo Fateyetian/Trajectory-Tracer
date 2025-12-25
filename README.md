@@ -8,10 +8,11 @@
 
 - 🎯 **对话式展示**: 左右对话气泡形式，清晰展示智能体思考和环境反馈
 - 🔍 **高级筛选**: 支持按状态、任务类型、步数范围等多维度筛选
-- 📊 **统计面板**: 实时展示轨迹统计信息（成功率、平均步数等）
+- 📊 **统计面板**: 实时展示轨迹统计信息（成功率、平均步数、数据源等）
 - 🎨 **精美 UI**: 基于 TailwindCSS，现代化设计，响应式布局
 - ⚡ **高性能**: 虚拟滚动技术，轻松处理数万条轨迹
 - 🐳 **一键部署**: Docker Compose 快速部署到服务器
+- 🔌 **多格式支持**: 适配器模式支持多种轨迹数据格式（HuggingFace、REBEL JSON等）
 
 ## 🏗️ 技术栈
 
@@ -36,6 +37,8 @@
 Trajectory-Tracer/
 ├── backend/                    # 后端服务
 │   ├── main.py                # FastAPI 主应用
+│   ├── trajectory_adapters.py # 轨迹格式适配器
+│   ├── data_sources.json      # 数据源配置
 │   ├── requirements.txt       # Python 依赖
 │   └── Dockerfile            # 后端 Docker 配置
 ├── frontend/                  # 前端应用
@@ -55,7 +58,9 @@ Trajectory-Tracer/
 │   └── Dockerfile           # 前端 Docker 配置
 ├── alfworld_expert_traj/     # 轨迹数据目录
 ├── docker-compose.yml        # Docker Compose 配置
-└── README.md
+├── README.md                 # 项目说明
+├── ADDING_NEW_TRAJECTORY_TYPES.md  # 添加新格式指南
+└── TESTING.md               # 测试文档
 ```
 
 ## 🚀 快速开始
@@ -172,6 +177,15 @@ GET /api/trajectories/{trajectory_id}
 GET /api/statistics
 ```
 
+返回包含数据源统计的信息
+
+### 获取数据源信息
+```
+GET /api/data-sources
+```
+
+返回已加载的所有数据源及其格式信息
+
 ## 🎨 界面预览
 
 ### 主界面布局
@@ -215,7 +229,11 @@ services:
 
 ## 📊 数据格式
 
-支持 HuggingFace Datasets 格式的轨迹数据，要求包含:
+本项目支持多种轨迹数据格式，通过适配器模式实现。
+
+### 支持的格式
+
+#### 1. HuggingFace Datasets 格式
 
 ```json
 {
@@ -229,6 +247,33 @@ services:
   "item_id": "唯一标识"
 }
 ```
+
+#### 2. REBEL JSON 格式
+
+```json
+{
+  "task": "任务描述",
+  "done": "True" | "False",
+  "data": [
+    {
+      "step": 1,
+      "obs": "环境观察",
+      "prompt": "提示词",
+      "response": "<belief>...</belief><reasoning>...</reasoning><action>...</action>"
+    }
+  ]
+}
+```
+
+### 添加新格式
+
+如需支持其他轨迹格式，请参考详细指南：[如何添加新的轨迹类型](./ADDING_NEW_TRAJECTORY_TYPES.md)
+
+简要步骤：
+1. 在 `backend/trajectory_adapters.py` 中创建新的适配器类
+2. 继承 `TrajectoryAdapter` 并实现 `load()` 和 `parse()` 方法
+3. 在 `TrajectoryLoader` 中注册适配器
+4. 在 `backend/data_sources.json` 中配置数据源
 
 ## 🚀 生产部署建议
 
@@ -278,9 +323,10 @@ docker-compose logs > app.log
 - [ ] 添加轨迹对比功能
 - [ ] 支持导出为 PDF/图片
 - [ ] 实现轨迹播放模式（动画展示）
-- [ ] 集成更多数据集类型
+- [x] 支持多种数据格式（适配器模式）
 - [ ] 添加全文搜索功能
 - [ ] 接入 Benchmark 系统
+- [ ] 支持更多轨迹格式（CSV、数据库等）
 
 ## 🤝 贡献
 

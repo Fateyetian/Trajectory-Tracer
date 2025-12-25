@@ -1,0 +1,18 @@
+{
+  "data_sources": [
+    {
+      "name": "ALFWorld Expert Trajectories",
+      "path": "alfworld_expert_traj",
+      "type": "huggingface",
+      "enabled": true,
+      "description": "Expert trajectories from ALFWorld dataset in HuggingFace format"
+    },
+    {
+      "name": "REBEL Cold Start Clean",
+      "path": "alfworld_expert_traj/rebel_coldstart_clean.json",
+      "type": "rebel_json",
+      "enabled": true,
+      "description": "REBEL agent trajectories with belief-reasoning-action format"
+    }
+  ]
+}
