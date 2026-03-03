@@ -1,59 +1,38 @@
 #!/bin/bash
+echo "============================================"
+echo "  Trajectory Viewer - Docker 一键部署"
+echo "============================================"
+echo
 
-echo "======================================"
-echo "  Trajectory Viewer - Quick Start"
-echo "======================================"
-echo ""
-
-# 检查 Docker
-if ! command -v docker &> /dev/null; then
-    echo "❌ Error: Docker is not installed"
-    echo "Please install Docker first: https://docs.docker.com/get-docker/"
+# 检查 Docker 是否运行
+if ! docker info > /dev/null 2>&1; then
+    echo "[错误] Docker 未运行，请先启动 Docker"
     exit 1
 fi
 
-# 检查 Docker Compose
-if ! command -v docker-compose &> /dev/null; then
-    echo "❌ Error: Docker Compose is not installed"
-    echo "Please install Docker Compose first: https://docs.docker.com/compose/install/"
-    exit 1
-fi
+echo "[1/3] 停止旧容器..."
+docker-compose down 2>/dev/null
 
-echo "✅ Docker and Docker Compose are installed"
-echo ""
-
-# 检查数据集
-if [ ! -d "alfworld_expert_traj" ]; then
-    echo "⚠️  Warning: alfworld_expert_traj directory not found"
-    echo "Please make sure the trajectory dataset is in the project root"
-    echo ""
-fi
-
-echo "🚀 Starting services..."
-echo ""
-
-# 构建并启动服务
+echo "[2/3] 构建并启动服务..."
 docker-compose up -d --build
 
-if [ $? -eq 0 ]; then
-    echo ""
-    echo "======================================"
-    echo "  ✅ Services started successfully!"
-    echo "======================================"
-    echo ""
-    echo "🌐 Frontend: http://localhost"
-    echo "📡 Backend:  http://localhost:8000"
-    echo "📚 API Docs: http://localhost:8000/docs"
-    echo ""
-    echo "📋 View logs:"
-    echo "   docker-compose logs -f"
-    echo ""
-    echo "🛑 Stop services:"
-    echo "   docker-compose down"
-    echo ""
-else
-    echo ""
-    echo "❌ Failed to start services"
-    echo "Check logs with: docker-compose logs"
+if [ $? -ne 0 ]; then
+    echo "[错误] 启动失败，请检查日志"
+    docker-compose logs
     exit 1
 fi
+
+echo "[3/3] 等待服务就绪..."
+sleep 5
+
+echo
+echo "============================================"
+echo "  启动成功！"
+echo "============================================"
+echo "  前端地址: http://localhost"
+echo "  后端API:  http://localhost:8000"
+echo "  API文档:  http://localhost:8000/docs"
+echo "============================================"
+echo
+echo "查看日志: docker-compose logs -f"
+echo "停止服务: docker-compose down"

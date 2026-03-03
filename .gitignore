@@ -42,3 +42,11 @@ logs/
 
 # Docker
 *.tar
+
+# Large trajectory data files (too large for GitHub)
+retro_traj/train_trajectories*.jsonl
+retro_traj/sft_trajectories.jsonl
+retro_traj/*.bak_*
+
+# Local Claude Code config
+.claude/settings.local.json
