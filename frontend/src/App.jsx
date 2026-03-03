@@ -1,12 +1,15 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore } from './store'
 import Header from './components/Header'
+import StatsPanel from './components/StatsPanel'
 import TrajectoryList from './components/TrajectoryList'
 import TrajectoryViewer from './components/TrajectoryViewer'
 import FilterPanel from './components/FilterPanel'
+import TrajectoryComparison from './components/retrosynthesis/TrajectoryComparison'
 
 function App() {
-  const { fetchTrajectories, fetchStatistics, currentTrajectory } = useStore()
+  const { fetchTrajectories, fetchStatistics, currentTrajectory, showComparison } = useStore()
+  const [showStats, setShowStats] = useState(false)
 
   useEffect(() => {
     fetchTrajectories()
@@ -15,7 +18,8 @@ function App() {
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
-      <Header />
+      <Header showStats={showStats} onToggleStats={() => setShowStats(v => !v)} />
+      <StatsPanel visible={showStats} />
 
       <div className="flex-1 flex overflow-hidden">
         {/* 左侧：轨迹列表 */}
@@ -25,7 +29,7 @@ function App() {
         </div>
 
         {/* 右侧：轨迹详情 */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0">
           {currentTrajectory ? (
             <TrajectoryViewer />
           ) : (
@@ -40,6 +44,9 @@ function App() {
           )}
         </div>
       </div>
+
+      {/* 轨迹对比全屏弹层（fixed 覆盖全局） */}
+      {showComparison && <TrajectoryComparison />}
     </div>
   )
 }
