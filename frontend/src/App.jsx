@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { useStore } from './store'
 import Header from './components/Header'
-import StatsPanel from './components/StatsPanel'
 import TrajectoryList from './components/TrajectoryList'
 import TrajectoryViewer from './components/TrajectoryViewer'
 import FilterPanel from './components/FilterPanel'
@@ -55,8 +54,7 @@ function App() {
       {/* 顶部 Header */}
       <Header />
 
-      {/* 统计详情面板（可折叠） */}
-      <StatsPanel />
+      {/* 统计详情面板由 Header 内部控制 */}
 
       {/* Tab 导航 */}
       <TabBar currentView={currentView} onTabChange={setCurrentView} />

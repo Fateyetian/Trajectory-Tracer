@@ -113,7 +113,7 @@ export default function Header() {
       </header>
 
       {/* 可折叠详细统计面板 */}
-      {showStats && <StatsPanel />}
+      {showStats && <StatsPanel visible={true} />}
     </>
   )
 }
