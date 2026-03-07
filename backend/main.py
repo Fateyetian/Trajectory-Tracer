@@ -5,11 +5,13 @@ Trajectory Viewer Backend - FastAPI Service
 """
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 import os
 from pathlib import Path
 from trajectory_adapters import TrajectoryLoader
+from exporters import MarkdownExporter, PromptExporter, PdfExporter
 
 app = FastAPI(title="Trajectory Viewer API", version="2.0.0")
 
@@ -394,6 +396,44 @@ async def get_source_files():
             file_map[sf]['success_count'] += 1
 
     return sorted(file_map.values(), key=lambda x: x['source_file'])
+
+
+@app.get("/api/trajectories/{trajectory_id}/export")
+async def export_trajectory(
+    trajectory_id: str,
+    format: str = Query("markdown", pattern="^(markdown|prompt|pdf)$")
+):
+    """
+    导出轨迹为指定格式（markdown / prompt / pdf）
+    """
+    trajectory = next((t for t in processed_trajectories if t['id'] == trajectory_id), None)
+    if not trajectory:
+        raise HTTPException(status_code=404, detail="Trajectory not found")
+
+    safe_id = trajectory_id.replace('/', '_').replace('\\', '_')
+
+    if format == "markdown":
+        content = MarkdownExporter.generate(trajectory)
+        return Response(
+            content=content.encode('utf-8'),
+            media_type="text/markdown",
+            headers={"Content-Disposition": f'attachment; filename="trajectory_{safe_id}.md"'}
+        )
+    elif format == "prompt":
+        import json as _json
+        content = PromptExporter.generate(trajectory)
+        return Response(
+            content=_json.dumps(content, ensure_ascii=False, indent=2).encode('utf-8'),
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="trajectory_{safe_id}_prompt.json"'}
+        )
+    elif format == "pdf":
+        pdf_bytes = PdfExporter.generate(trajectory)
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="trajectory_{safe_id}.pdf"'}
+        )
 
 
 if __name__ == "__main__":

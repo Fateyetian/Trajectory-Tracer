@@ -1,6 +1,7 @@
 import { useStore } from '../store'
 import MessageBubble from './MessageBubble'
 import RetrosynthesisTree from './retrosynthesis/RetrosynthesisTree'
+import ExportMenu from './ExportMenu'
 
 export default function TrajectoryViewer() {
   const { currentTrajectory, fetchComparison } = useStore()
@@ -56,6 +57,7 @@ export default function TrajectoryViewer() {
                 🔀 多轨迹对比
               </button>
             )}
+            <ExportMenu trajectoryId={currentTrajectory.id} />
             <div className="text-center bg-white rounded-lg px-4 py-2 shadow-sm">
               <div className="text-2xl font-bold text-primary">{currentTrajectory.steps}</div>
               <div className="text-xs text-gray-500 mt-1">总步数</div>
