@@ -730,12 +730,180 @@ class RetrosynthesisJSONLDirAdapter(TrajectoryAdapter):
         return traj
 
 
+class RetroV2JSONLAdapter(TrajectoryAdapter):
+    """Retro-v2 JSONL 格式适配器
+
+    对应 retro_trajectory_writer.py 生成的格式：
+    {
+      "traj_id": "...",
+      "timestamp": "...",
+      "target_smiles": "CCO",
+      "is_success": false,
+      "total_steps": 8,
+      "total_reward": -1.0,
+      "steps": [
+        {
+          "step": 0, "state_id": "S0",
+          "user_message": "...", "model_response": "...",
+          "action_type": "single_step_retro", "params": {...},
+          "step_reward": 0.0, "done": false,
+          "anchor_obs": "CCO", "error": null
+        }, ...
+      ]
+    }
+    """
+
+    def load(self, path: Path) -> List[Dict[str, Any]]:
+        trajectories = []
+        with open(path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        trajectories.append(json.loads(line))
+                    except json.JSONDecodeError as e:
+                        print(f"Warning: Failed to parse line: {e}")
+        return trajectories
+
+    def parse(self, raw_item: Dict[str, Any], idx: int) -> Trajectory:
+        traj_id       = raw_item.get('traj_id', f'retrov2_{idx:05d}')
+        target_smiles = raw_item.get('target_smiles', '')
+        is_success    = raw_item.get('is_success', False)
+        total_steps   = raw_item.get('total_steps', 0)
+        total_reward  = raw_item.get('total_reward', 0.0)
+        timestamp     = raw_item.get('timestamp', '')
+        steps_data    = raw_item.get('steps', [])
+
+        messages = []
+        cumulative_reward = 0.0
+
+        for step_data in steps_data:
+            step_num      = step_data.get('step', 0)
+            state_id      = step_data.get('state_id', '')
+            user_message  = step_data.get('user_message', '')
+            model_response = step_data.get('model_response', '')
+            action_type   = step_data.get('action_type', 'unknown')
+            params        = step_data.get('params', {})
+            step_reward   = float(step_data.get('step_reward', 0.0))
+            done          = step_data.get('done', False)
+            anchor_obs    = step_data.get('anchor_obs', '')
+            error         = step_data.get('error')
+
+            cumulative_reward += step_reward
+
+            # 用户消息（环境给出的 observation）
+            if user_message:
+                messages.append(Message(
+                    role='human',
+                    content=user_message,
+                    metadata={
+                        'step': step_num,
+                        'state_id': state_id,
+                        'type': 'observation',
+                        'anchor_obs': anchor_obs,
+                    }
+                ))
+
+            # 解析模型输出中的 [THINK] 和 [ACTION] 块
+            thought = None
+            action  = None
+            if '[THINK]' in model_response and '[/THINK]' in model_response:
+                ts = model_response.find('[THINK]') + len('[THINK]')
+                te = model_response.find('[/THINK]')
+                thought = model_response[ts:te].strip()
+            if '[ACTION]' in model_response and '[/ACTION]' in model_response:
+                as_ = model_response.find('[ACTION]') + len('[ACTION]')
+                ae  = model_response.find('[/ACTION]')
+                action = model_response[as_:ae].strip()
+            elif action_type and action_type != 'unknown':
+                action = f"{action_type}({json.dumps(params, ensure_ascii=False)})"
+
+            is_valid = (action_type != 'unknown') and (error is None)
+
+            messages.append(Message(
+                role='agent',
+                content=model_response,
+                thought=thought,
+                action=action,
+                metadata={
+                    'step': step_num,
+                    'state_id': state_id,
+                    'tool_name': action_type,
+                    'tool_args': params,
+                    'reward': step_reward,
+                    'cumulative_reward': round(cumulative_reward, 4),
+                    'is_valid_action': is_valid,
+                    'action_type': action_type,
+                    'done': done,
+                    'error': error,
+                    'type': 'agent_action',
+                }
+            ))
+
+        status = 'success' if is_success else 'failed'
+        task_label = (f"逆合成规划: {target_smiles[:50]}..."
+                      if len(target_smiles) > 50
+                      else f"逆合成规划: {target_smiles}")
+
+        return Trajectory(
+            id=traj_id,
+            task=task_label,
+            status=status,
+            steps=total_steps,
+            task_type='retrosynthesis_v2',
+            messages=messages,
+            environment=f"目标分子: {target_smiles}\n逆合成规划任务 (Retro-v2)",
+            metadata={
+                'source': 'retrov2',
+                'target_molecule': target_smiles,
+                'total_reward': total_reward,
+                'timestamp': timestamp,
+                'pathway_length': 0,
+                'ground_truth_length': 0,
+                'epoch': 0,
+                'prompt_id': 0,
+                'valid_steps': sum(
+                    1 for m in messages
+                    if m.role == 'agent' and m.metadata.get('is_valid_action', False)
+                ),
+                'anchor_states': [],
+                'final_pathway': [],
+                'pathway_validity': False,
+            }
+        )
+
+
+class RetroV2JSONLDirAdapter(TrajectoryAdapter):
+    """从目录中加载所有 retrov2 格式 JSONL 文件"""
+
+    def __init__(self):
+        self._adapter = RetroV2JSONLAdapter()
+
+    def load(self, path: Path) -> List[Dict[str, Any]]:
+        all_items = []
+        for jsonl_file in sorted(path.glob('*.jsonl')):
+            items = self._adapter.load(jsonl_file)
+            for item in items:
+                item['_source_file'] = jsonl_file.name
+            all_items.extend(items)
+        return all_items
+
+    def parse(self, raw_item: Dict[str, Any], idx: int) -> Trajectory:
+        traj = self._adapter.parse(raw_item, idx)
+        source_file = raw_item.get('_source_file', '')
+        if source_file:
+            traj.metadata['source_file'] = source_file
+        return traj
+
+
 class TrajectoryLoader:
     """轨迹加载器 - 自动检测并使用合适的适配器"""
 
     def __init__(self):
         self.adapters = {
             'rebel_json': REBELJSONAdapter(),
+            'retrov2_jsonl': RetroV2JSONLAdapter(),
+            'retrov2_jsonl_dir': RetroV2JSONLDirAdapter(),
             'retrosynthesis_jsonl': RetrosynthesisJSONLAdapter(),
             'retrosynthesis_jsonl_0223': RetrosynthesisJSONL0223Adapter(),
             'retrosynthesis_jsonl_dir': RetrosynthesisJSONLDirAdapter(),
@@ -761,6 +929,9 @@ class TrajectoryLoader:
                         first_line = f.readline().strip()
                         if first_line:
                             first_item = json.loads(first_line)
+                            # retrov2 格式：顶层有 traj_id 和 target_smiles
+                            if 'traj_id' in first_item and 'target_smiles' in first_item:
+                                return 'retrov2_jsonl'
                             # 0223 新格式：顶层有 "task" + "metadata" + "Step N" 键
                             if ('task' in first_item and 'metadata' in first_item and
                                     any(k.startswith('Step ') for k in first_item)):

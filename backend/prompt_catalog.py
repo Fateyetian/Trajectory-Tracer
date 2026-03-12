@@ -9,31 +9,40 @@ from typing import List, Dict, Any
 
 
 # Source directory containing all prompt files
-PROMPTS_DIR = Path(__file__).parent.parent.parent / "code" / "agent_system" / "environments" / "prompts"
+PROMPTS_DIR = Path(__file__).parent.parent.parent / "RLVMR" / "code" / "agent_system" / "environments" / "prompts"
 
 # Metadata rules: how to classify prompts by name pattern
-def _classify_prompt(name: str) -> Dict[str, Any]:
-    """Classify a prompt by its variable name."""
+def _classify_prompt(name: str, file_stem: str = '') -> Dict[str, Any]:
+    """Classify a prompt by its variable name and source file stem."""
     name_lower = name.lower()
+    fname = file_stem.lower()  # filename stem for file-level classification
 
-    # Environment
-    if 'alfworld' in name_lower or 'alfworld' in name_lower:
+    # Environment: check filename first (more reliable), then variable name
+    if 'alfworld' in fname or 'alfworld' in name_lower:
         env = 'alfworld'
-    elif 'webshop' in name_lower:
+    elif 'webshop' in fname or 'webshop' in name_lower:
         env = 'webshop'
-    elif 'sciworld' in name_lower:
+    elif 'sciworld' in fname or 'sciworld' in name_lower:
         env = 'sciworld'
+    elif 'retro' in fname or 'retro' in name_lower:
+        env = 'retro'
     else:
         env = 'general'
 
-    # Phase
-    if 'tagging' in name_lower:
+    # File-level phase overrides: files that don't follow naming conventions
+    # retro.py contains RL/SFT training prompts (same format for both phases)
+    FILE_PHASE_OVERRIDES = {'retro': 'rl'}
+
+    # Phase: check filename first, then variable name
+    if fname in FILE_PHASE_OVERRIDES:
+        phase = FILE_PHASE_OVERRIDES[fname]
+    elif 'tagging' in fname or 'tagging' in name_lower:
         phase = 'annotation'
-    elif '_cs' in name_lower or 'cold_start' in name_lower:
+    elif '_cs' in fname or 'cold_start' in fname or '_cs' in name_lower or 'cold_start' in name_lower:
         phase = 'sft'
-    elif '_rl' in name_lower:
+    elif '_rl' in fname or '_rl' in name_lower:
         phase = 'rl'
-    elif 'rebel' in name_lower:
+    elif 'rebel' in fname or 'rebel' in name_lower:
         phase = 'rebel'
     else:
         phase = 'basic'
@@ -95,7 +104,7 @@ def _parse_prompt_file(filepath: Path) -> List[Dict[str, Any]]:
             if len(content) < 20:  # Skip trivially short strings
                 continue
 
-            meta = _classify_prompt(name)
+            meta = _classify_prompt(name, filepath.stem)
             placeholders = _extract_placeholders(content)
 
             prompts.append({

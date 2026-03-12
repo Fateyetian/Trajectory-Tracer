@@ -86,19 +86,26 @@ def _resolve_data_sources() -> List[Dict[str, Any]]:
                 if not p.is_absolute():
                     p = base_path / src_path
                 if p.is_dir():
-                    direct_files = sorted(p.glob('rollout_*.jsonl'))
-                    if direct_files:
-                        for jf in direct_files:
-                            sources.append({'name': f"{p.name}/{jf.name}", 'path': jf, 'type': fmt or 'webshop_rl_jsonl'})
+                    # 有明确 dir 类型的适配器时，直接将目录交给适配器处理
+                    _DIR_ADAPTER_TYPES = {
+                        'huggingface', 'retrosynthesis_jsonl_dir', 'retrov2_jsonl_dir',
+                    }
+                    if fmt in _DIR_ADAPTER_TYPES:
+                        sources.append({'name': src.get('name', src_path), 'path': p, 'type': fmt})
                     else:
-                        for subdir in sorted(p.iterdir()):
-                            if not subdir.is_dir():
-                                continue
-                            sub_files = sorted(subdir.glob('rollout_*.jsonl'))
-                            if sub_files:
-                                for jf in sub_files:
-                                    sources.append({'name': f"{subdir.name}/{jf.name}", 'path': jf, 'type': fmt or 'webshop_rl_jsonl'})
-                                print(f"Found {len(sub_files)} rollout files in {subdir.name}")
+                        direct_files = sorted(p.glob('rollout_*.jsonl'))
+                        if direct_files:
+                            for jf in direct_files:
+                                sources.append({'name': f"{p.name}/{jf.name}", 'path': jf, 'type': fmt or 'webshop_rl_jsonl'})
+                        else:
+                            for subdir in sorted(p.iterdir()):
+                                if not subdir.is_dir():
+                                    continue
+                                sub_files = sorted(subdir.glob('rollout_*.jsonl'))
+                                if sub_files:
+                                    for jf in sub_files:
+                                        sources.append({'name': f"{subdir.name}/{jf.name}", 'path': jf, 'type': fmt or 'webshop_rl_jsonl'})
+                                    print(f"Found {len(sub_files)} rollout files in {subdir.name}")
                 else:
                     sources.append({'name': src.get('name', src_path), 'path': p, 'type': fmt})
         except Exception as e:
@@ -156,8 +163,18 @@ async def load_data():
 # ── Health Check ──────────────────────────────────────────────────────────
 
 @app.get("/")
-@app.get("/health")
 async def root():
+    """根路径：前端存在时返回 SPA index.html，否则返回 health JSON"""
+    if _FRONTEND_DIST.exists():
+        return FileResponse(str(_FRONTEND_DIST / "index.html"))
+    return {
+        "status": "ok",
+        "message": "Trajectory Viewer API is running",
+        "trajectories_loaded": len(processed_trajectories)
+    }
+
+@app.get("/health")
+async def health():
     return {
         "status": "ok",
         "message": "Trajectory Viewer API is running",
@@ -458,6 +475,17 @@ async def get_training_metrics(
     return {'steps': metrics, 'total_steps': len(metrics)}
 
 
+@app.get("/api/training-metrics/multi")
+async def get_multi_exp_metrics():
+    """返回多实验对比训练指标（v6/v7/v8/v9 Retro-GiGPO）"""
+    default = Path(__file__).parent / "training_metrics_multi_exp.json"
+    if not default.exists():
+        raise HTTPException(status_code=404, detail="Multi-experiment metrics file not found")
+    with open(default, 'r') as f:
+        data = json.load(f)
+    return data
+
+
 # ── Prompt Catalog ────────────────────────────────────────────────────────
 
 @app.get("/api/prompts")
@@ -503,7 +531,12 @@ if _FRONTEND_DIST.exists():
 
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
-        """对所有非 /api 路径返回 index.html（SPA 路由支持）"""
+        """SPA 路由支持：若 dist 中存在对应文件（如 RDKit_minimal.js / .wasm）则直接返回，
+        否则返回 index.html，让前端 router 处理。"""
+        if full_path:
+            candidate = _FRONTEND_DIST / full_path
+            if candidate.is_file():
+                return FileResponse(str(candidate))
         return FileResponse(str(_FRONTEND_DIST / "index.html"))
 
 

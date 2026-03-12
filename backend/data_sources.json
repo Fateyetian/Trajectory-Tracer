@@ -13,6 +13,34 @@
       "type": "rebel_json",
       "enabled": true,
       "description": "REBEL agent trajectories with belief-reasoning-action format"
+    },
+    {
+      "name": "RetroGiGPO v8 - Eval Trajectories (sft_rl_v8)",
+      "path": "../RLVMR/code/examples/retro_gigpo_trainer/sft_pipeline/scripts/trajectories/retro-gigpo-sft-rl_sft_rl_v8_retro_gigpo_kl_cov_200ep_03-04-13/eval_trajectories.jsonl",
+      "type": "retrosynthesis_jsonl_0223",
+      "enabled": true,
+      "description": "评估集轨迹：3040条，成功率8.68%，v8实验（KL-cov + 500mol SFT，145步） 2026-03-04"
+    },
+    {
+      "name": "RetroGiGPO v8 - Train Trajectories (sft_rl_v8)",
+      "path": "../RLVMR/code/examples/retro_gigpo_trainer/sft_pipeline/scripts/trajectories/retro-gigpo-sft-rl_sft_rl_v8_retro_gigpo_kl_cov_200ep_03-04-13/train_trajectories.jsonl",
+      "type": "retrosynthesis_jsonl_0223",
+      "enabled": true,
+      "description": "训练集轨迹：38400条（966MB），v8实验 Peak Success 81.6%@Step61，2026-03-04"
+    },
+    {
+      "name": "Retro-v2 核验轨迹（Qwen2.5-1.5B 真实交互）",
+      "path": "../RLVMR/code/trajectory_logs/verify",
+      "type": "retrov2_jsonl_dir",
+      "enabled": true,
+      "description": "3条核验轨迹：CCO / CC(=O)O / 阿司匹林，Qwen2.5-1.5B 未训练模型，THINK/ACTION格式，2026-03-08"
+    },
+    {
+      "name": "Retro-v2 专家标注轨迹（Claude Sonnet 4.6）",
+      "path": "../RLVMR/code/trajectory_logs/annotation_v2",
+      "type": "retrov2_jsonl_dir",
+      "enabled": true,
+      "description": "10条专家标注示范轨迹，GT路线 + Claude Sonnet 4.6 THINK推理，用于SFT质量核验，2026-03-08"
     }
   ]
 }

@@ -44,6 +44,8 @@ export const useStore = create((set, get) => ({
   // ── 训练指标 ──────────────────────────────────────────────────────────
   trainingMetrics: null,
   metricsLoading: false,
+  multiExpMetrics: null,
+  multiExpLoading: false,
 
   // ── Actions: 轨迹列表 ─────────────────────────────────────────────────
   fetchTrajectories: async () => {
@@ -149,7 +151,9 @@ export const useStore = create((set, get) => ({
   setCurrentView: (view) => {
     set({ currentView: view })
     if (view === 'groups') get().fetchTrajectoryGroups()
-    else if (view === 'metrics') get().fetchTrainingMetrics()
+    else if (view === 'metrics') {
+      get().fetchMultiExpMetrics()
+    }
   },
 
   // ── Actions: 逆合成对比 ───────────────────────────────────────────────
@@ -193,6 +197,18 @@ export const useStore = create((set, get) => ({
     } catch (error) {
       console.error('Failed to fetch training metrics:', error)
       set({ metricsLoading: false })
+    }
+  },
+
+  fetchMultiExpMetrics: async () => {
+    set({ multiExpLoading: true })
+    try {
+      const response = await fetch(`${API_BASE}/training-metrics/multi`)
+      if (!response.ok) throw new Error('Failed to fetch multi-exp metrics')
+      set({ multiExpMetrics: await response.json(), multiExpLoading: false })
+    } catch (error) {
+      console.error('Failed to fetch multi-exp metrics:', error)
+      set({ multiExpLoading: false })
     }
   },
 

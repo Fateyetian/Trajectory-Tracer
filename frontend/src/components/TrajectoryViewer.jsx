@@ -1,7 +1,23 @@
+import { useMemo } from 'react'
 import { useStore } from '../store'
 import MessageBubble from './MessageBubble'
 import RetrosynthesisTree from './retrosynthesis/RetrosynthesisTree'
+import RetroV2StepPanel from './retrosynthesis/RetroV2StepPanel'
 import ExportMenu from './ExportMenu'
+import { parseRetroV2Obs } from '../utils/parseRetroV2Obs'
+
+/** 将 messages 按 [human, agent] 配对成 step 列表 */
+function pairMessages(messages) {
+  const steps = []
+  let i = 0
+  while (i < messages.length) {
+    const step = { human: null, agent: null, startIdx: i }
+    if (messages[i]?.role === 'human') { step.human = messages[i]; i++ }
+    if (i < messages.length && messages[i]?.role !== 'human') { step.agent = messages[i]; i++ }
+    steps.push(step)
+  }
+  return steps
+}
 
 export default function TrajectoryViewer() {
   const { currentTrajectory, fetchComparison } = useStore()
@@ -14,6 +30,42 @@ export default function TrajectoryViewer() {
   const isRetrosynthesis = currentTrajectory.task_type.startsWith('retrosynthesis')
   const isWebShop = currentTrajectory.task_type === 'webshop'
   const metadata = currentTrajectory.metadata || {}
+  const isRetroV2 = isRetrosynthesis && metadata.source === 'retrov2'
+
+  /**
+   * 跨步追踪每个节点的父节点关系。
+   * 当 backbone 增长（新增了一个 focus 节点）时，
+   * 新出现的所有节点（backbone 末尾 + 新叶子）都是上一个 focus 的子节点。
+   */
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const humanStates = useMemo(() => {
+    if (!isRetroV2) return []
+    const humanMsgs = currentTrajectory.messages.filter(m => m.role === 'human')
+    const parentMap = {}   // nodeId -> parentNodeId（跨步累积）
+
+    return humanMsgs.map((msg, i) => {
+      const state = parseRetroV2Obs(msg.content)
+      const prevState = i > 0 ? parseRetroV2Obs(humanMsgs[i - 1].content) : null
+
+      if (prevState && state) {
+        const prevFocusId = prevState.backboneNodes[prevState.backboneNodes.length - 1]?.id
+        if (prevFocusId) {
+          const prevIds = new Set([
+            ...prevState.backboneNodes.map(n => n.id),
+            ...prevState.leafNodes.map(n => n.id),
+          ])
+          // 新出现的节点都是上一个 focus 的子节点
+          ;[...state.backboneNodes, ...state.leafNodes].forEach(n => {
+            if (!prevIds.has(n.id) && !parentMap[n.id]) {
+              parentMap[n.id] = prevFocusId
+            }
+          })
+        }
+      }
+
+      return { state, prevState, parentMap: { ...parentMap } }
+    })
+  }, [currentTrajectory?.id, isRetroV2])  // eslint-disable-line
 
   // 渐变背景：根据环境类型区分
   const headerGradient = isWebShop
@@ -140,19 +192,66 @@ export default function TrajectoryViewer() {
       </div>
 
       {/* ── 对话消息区 ── */}
-      <div className="flex-1 overflow-y-auto p-5">
-        <div className="max-w-4xl mx-auto space-y-3">
-          {currentTrajectory.messages.map((message, index) => (
-            <MessageBubble
-              key={index}
-              message={message}
-              index={index}
-              isRetrosynthesis={isRetrosynthesis}
-              isWebShop={isWebShop}
-            />
-          ))}
+      {isRetroV2 ? (
+        /* retrov2: 单列逐步卡片，每步内嵌树状态 */
+        <div className="flex-1 overflow-y-auto bg-gray-50 p-4">
+          <div className="max-w-5xl mx-auto space-y-4">
+            {pairMessages(currentTrajectory.messages).map((step, idx) => (
+              <div
+                key={idx}
+                className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
+              >
+                {/* Step header */}
+                <div className="flex items-center gap-3 px-4 py-2 bg-gradient-to-r from-indigo-50 to-blue-50 border-b border-indigo-100">
+                  <span className="text-xs font-bold text-white bg-indigo-500 rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0">
+                    {idx + 1}
+                  </span>
+                  <span className="text-sm font-semibold text-indigo-700">Step {idx + 1}</span>
+                  {step.agent?.action && (
+                    <span className="text-[11px] font-mono text-indigo-400 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full ml-auto">
+                      {step.agent.action}
+                    </span>
+                  )}
+                </div>
+
+                {/* Tree state (from human observation message) */}
+                {step.human && (
+                  <RetroV2StepPanel
+                    humanMessage={step.human}
+                    stepData={humanStates[idx]}
+                    defaultOpen={idx === 0}
+                  />
+                )}
+
+                {/* Agent response */}
+                {step.agent && (
+                  <MessageBubble
+                    message={step.agent}
+                    index={step.startIdx + 1}
+                    isRetrosynthesis={isRetrosynthesis}
+                    isWebShop={isWebShop}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        /* 其他环境：原有单列布局 */
+        <div className="flex-1 overflow-y-auto p-5">
+          <div className="max-w-4xl mx-auto space-y-3">
+            {currentTrajectory.messages.map((message, index) => (
+              <MessageBubble
+                key={index}
+                message={message}
+                index={index}
+                isRetrosynthesis={isRetrosynthesis}
+                isWebShop={isWebShop}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── 逆合成路径树（成功轨迹） ── */}
       {isRetrosynthesis && currentTrajectory.status === 'success' && metadata.final_pathway?.length > 0 && (

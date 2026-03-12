@@ -287,7 +287,7 @@ export default function PromptCompareView() {
         </div>
 
         {/* 列表 */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+        <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1.5">
           {filteredPrompts.map(prompt => (
             <PromptListItem
               key={prompt.id}
@@ -304,7 +304,7 @@ export default function PromptCompareView() {
       </div>
 
       {/* ── 右侧对比面板 ── */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-gray-50">
         {/* 对比头部 */}
         <div className="grid grid-cols-2 gap-px bg-gray-200 border-b border-gray-200 flex-shrink-0">
           {[['left', leftPrompt, 'bg-blue-50 border-blue-200', 'text-blue-700'],
@@ -351,7 +351,7 @@ export default function PromptCompareView() {
         )}
 
         {/* Prompt 内容并排显示 */}
-        <div className="flex-1 grid grid-cols-2 gap-px bg-gray-200 overflow-hidden">
+        <div className="flex-1 min-h-0 grid grid-cols-2 gap-px bg-gray-200 overflow-hidden">
           {[leftPrompt, rightPrompt].map((prompt, idx) => (
             <div key={idx} className="bg-white overflow-auto p-4">
               {prompt ? (

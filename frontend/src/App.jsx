@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore } from './store'
 import Header from './components/Header'
 import TrajectoryList from './components/TrajectoryList'
@@ -44,6 +44,8 @@ function App() {
     currentView, setCurrentView,
   } = useStore()
 
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
   useEffect(() => {
     fetchTrajectories()
     fetchStatistics()
@@ -62,11 +64,39 @@ function App() {
       {/* 主内容区 */}
       {currentView === 'list' && (
         <div className="flex-1 flex overflow-hidden">
-          {/* 左侧：筛选 + 列表 */}
-          <div className="w-80 flex flex-col bg-white border-r border-gray-200 flex-shrink-0">
-            <FilterPanel />
-            <TrajectoryList />
-          </div>
+
+          {/* 左侧：筛选 + 列表（可折叠） */}
+          {sidebarCollapsed ? (
+            /* 折叠态：36px 竖条 */
+            <div className="w-9 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col items-center py-3 gap-2">
+              <button
+                onClick={() => setSidebarCollapsed(false)}
+                className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-50 border border-gray-200 text-gray-500 hover:text-gray-800 hover:bg-gray-100 shadow-sm transition-colors text-base font-bold"
+                title="展开侧栏"
+              >›</button>
+              <span
+                className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest select-none mt-1"
+                style={{ writingMode: 'vertical-rl', letterSpacing: '0.15em' }}
+              >Trajs</span>
+            </div>
+          ) : (
+            <div className="w-80 flex flex-col bg-white border-r border-gray-200 flex-shrink-0 overflow-hidden relative">
+              {/* 折叠按钮条 */}
+              <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-100 flex-shrink-0 bg-gray-50">
+                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">筛选 &amp; 列表</span>
+                <button
+                  onClick={() => setSidebarCollapsed(true)}
+                  className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-200 transition-all"
+                  title="折叠侧栏 (隐藏筛选列表)"
+                >
+                  <span>‹‹</span>
+                  <span>折叠</span>
+                </button>
+              </div>
+              <FilterPanel />
+              <TrajectoryList />
+            </div>
+          )}
 
           {/* 右侧：轨迹详情 */}
           <div className="flex-1 flex flex-col min-w-0">
@@ -95,13 +125,13 @@ function App() {
       )}
 
       {currentView === 'metrics' && (
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden">
           <TrainingMetricsView />
         </div>
       )}
 
       {currentView === 'prompts' && (
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden flex flex-col">
           <PromptCompareView />
         </div>
       )}

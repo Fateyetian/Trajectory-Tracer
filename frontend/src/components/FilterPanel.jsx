@@ -45,6 +45,7 @@ export default function FilterPanel() {
             <option value="webshop">🛒 WebShop</option>
             <option value="retrosynthesis">🧪 Retrosynthesis</option>
             <option value="retrosynthesis_sft">🧪 Retrosynthesis SFT</option>
+            <option value="retrosynthesis_v2">🧪 Retrosynthesis V2</option>
             <option value="put">Put (放置)</option>
             <option value="clean">Clean (清洁)</option>
             <option value="cool">Cool (冷却)</option>
