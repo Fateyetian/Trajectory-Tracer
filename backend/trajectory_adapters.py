@@ -688,6 +688,7 @@ class RetrosynthesisJSONLDirAdapter(TrajectoryAdapter):
     def __init__(self):
         self.old_adapter = RetrosynthesisJSONLAdapter()
         self.new_adapter = RetrosynthesisJSONL0223Adapter()
+        self.retrov2_adapter = RetroV2JSONLAdapter()
 
     @staticmethod
     def _detect_file_format(path: Path) -> str:
@@ -697,6 +698,9 @@ class RetrosynthesisJSONLDirAdapter(TrajectoryAdapter):
                 first_line = f.readline().strip()
                 if first_line:
                     obj = json.loads(first_line)
+                    # Retrov2 格式特征：顶层有 "traj_id" + "target_smiles" + "steps"
+                    if 'traj_id' in obj and 'target_smiles' in obj and 'steps' in obj:
+                        return 'retrov2'
                     # 0223 新格式特征：顶层有 "task" + "metadata" + "Step N" 键
                     if ('task' in obj and 'metadata' in obj and
                             any(k.startswith('Step ') for k in obj)):
@@ -711,7 +715,12 @@ class RetrosynthesisJSONLDirAdapter(TrajectoryAdapter):
         jsonl_files = sorted(path.glob('*.jsonl'))
         for jsonl_file in jsonl_files:
             fmt = self._detect_file_format(jsonl_file)
-            adapter = self.new_adapter if fmt == 'new' else self.old_adapter
+            if fmt == 'retrov2':
+                adapter = self.retrov2_adapter
+            elif fmt == 'new':
+                adapter = self.new_adapter
+            else:
+                adapter = self.old_adapter
             items = adapter.load(jsonl_file)
             for item in items:
                 item['_source_file'] = jsonl_file.name
@@ -722,7 +731,12 @@ class RetrosynthesisJSONLDirAdapter(TrajectoryAdapter):
     def parse(self, raw_item: Dict[str, Any], idx: int) -> Trajectory:
         """根据文件格式标记选择对应适配器解析"""
         fmt = raw_item.get('_file_format', 'old')
-        adapter = self.new_adapter if fmt == 'new' else self.old_adapter
+        if fmt == 'retrov2':
+            adapter = self.retrov2_adapter
+        elif fmt == 'new':
+            adapter = self.new_adapter
+        else:
+            adapter = self.old_adapter
         traj = adapter.parse(raw_item, idx)
         source_file = raw_item.get('_source_file', '')
         if source_file:

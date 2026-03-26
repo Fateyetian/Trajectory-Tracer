@@ -15,6 +15,13 @@
       "description": "REBEL agent trajectories with belief-reasoning-action format"
     },
     {
+      "name": "RetroGiGPO - Retro.jsonl (AND-OR Tree Search)",
+      "path": "retro_traj/retro.jsonl",
+      "type": "retrov2_jsonl",
+      "enabled": true,
+      "description": "RetroGiGPO 轨迹：32条，AND-OR 树搜索轨迹，可视化逆合成路径"
+    },
+    {
       "name": "RetroGiGPO v8 - Eval Trajectories (sft_rl_v8)",
       "path": "../RLVMR/code/examples/retro_gigpo_trainer/sft_pipeline/scripts/trajectories/retro-gigpo-sft-rl_sft_rl_v8_retro_gigpo_kl_cov_200ep_03-04-13/eval_trajectories.jsonl",
       "type": "retrosynthesis_jsonl_0223",

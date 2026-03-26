@@ -127,14 +127,14 @@ export default function MessageBubble({ message, index, isRetrosynthesis = false
             )}
 
             {/* 逆合成轨迹特有信息：奖励 */}
-            {isRetrosynthesis && reward !== undefined && (
+            {isRetrosynthesis && reward != null && (
               <div className="mt-3 pt-3 border-t border-white/20 flex gap-4 text-xs">
                 <span className={`${reward >= 0 ? 'text-green-200' : 'text-red-200'}`}>
                   奖励: {reward > 0 ? '+' : ''}{reward.toFixed(2)}
                 </span>
-                {cumulativeReward !== undefined && (
+                {cumulativeReward != null && (
                   <span className="text-white/70">
-                    累计: {cumulativeReward.toFixed(2)}
+                    累计: {Number(cumulativeReward).toFixed(2)}
                   </span>
                 )}
               </div>

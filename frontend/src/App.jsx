@@ -39,7 +39,7 @@ function TabBar({ currentView, onTabChange }) {
 
 function App() {
   const {
-    fetchTrajectories, fetchStatistics,
+    fetchTrajectories, fetchStatistics, fetchSourceFiles,
     currentTrajectory, showComparison,
     currentView, setCurrentView,
   } = useStore()
@@ -49,6 +49,7 @@ function App() {
   useEffect(() => {
     fetchTrajectories()
     fetchStatistics()
+    fetchSourceFiles()
   }, [])
 
   return (
