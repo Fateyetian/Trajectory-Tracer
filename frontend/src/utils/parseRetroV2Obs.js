@@ -311,7 +311,7 @@ function parseRetroJsonlCandidates(sectionText) {
       }
       // Remove availability markers like (✓), (✗), (?), (available), (unavailable)
       const smiles = part
-        .replace(/\s*\([✓✗]\)\s*/g, '')
+        .replace(/\s*\([✓✗?]\)\s*/g, '')
         .replace(/\s*\(available\)\s*/gi, '')
         .replace(/\s*\(unavailable\)\s*/gi, '')
         .trim()
